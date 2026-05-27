@@ -106,7 +106,7 @@ export default function DashboardPage() {
                       <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-lg ${p.result === 'LAYAK' ? 'bg-emerald-100/60 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-red-100/60 dark:bg-red-900/20 text-red-500 dark:text-red-400'}`}>{p.result}</span>
                       <span className="text-[10px] font-bold text-sky-400/50 tabular-nums">{p.confidence}%</span>
                     </div>
-                    <p className="text-xs text-sky-700/50 dark:text-sky-300/40 truncate">Rp {parseInt(p.loanAmount).toLocaleString('id-ID')} · {p.loanTerm} bulan · {p.inputData.loanPurpose}</p>
+                    <p className="text-xs text-sky-700/50 dark:text-sky-300/40 truncate">${parseInt(p.loanAmount).toLocaleString('en-US')} · {p.loanTerm} bulan · {p.inputData.loanPurpose}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-[10px] text-sky-400/50 font-medium">{new Date(p.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>

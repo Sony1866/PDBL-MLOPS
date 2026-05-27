@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Brain, ArrowRight, CheckCircle2, XCircle, TrendingUp, DollarSign, Clock, User, Home as HomeIcon, CreditCard, BarChart3, RefreshCw, ChevronRight, Sparkles, ArrowLeft, FileCheck } from 'lucide-react';
+import { Brain, ArrowRight, CheckCircle2, XCircle, TrendingUp, DollarSign, Clock, User, Home as HomeIcon, CreditCard, BarChart3, RefreshCw, ChevronRight, Sparkles, ArrowLeft, FileCheck, AlertCircle, Banknote, Calculator } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, PredictionResult } from '../context/AuthContext';
@@ -120,62 +120,99 @@ export default function PredictPage() {
     }
   }, [user, isLoggedIn, isLoading, router]);
 
-  const handlePredict = (e: React.FormEvent) => {
+  const handlePredict = async (e: React.FormEvent) => {
     e.preventDefault();
     setStep('loading');
     setLoadingProgress(0);
 
-    const msgs = ['Memuat model Gradient Boosting...', 'Preprocessing data nasabah...', 'Feature engineering...', 'Running prediction pipeline...', 'Menghitung confidence score...', 'Generating laporan...'];
+    const msgs = [
+      'Menghubungkan ke server AI...',
+      'Preprocessing data nasabah...',
+      'Menjalankan model klasifikasi...',
+      'Menghitung plafon dengan model regresi...',
+      'Menghitung cicilan anuitas...',
+      'Menyusun laporan kredit...',
+    ];
     let msgIdx = 0;
     setLoadingText(msgs[0]);
-    const msgInterval = setInterval(() => { msgIdx++; if (msgIdx < msgs.length) setLoadingText(msgs[msgIdx]); }, 500);
-    const progInterval = setInterval(() => { setLoadingProgress(p => Math.min(p + Math.random() * 15, 95)); }, 400);
+    const msgInterval = setInterval(() => {
+      msgIdx++;
+      if (msgIdx < msgs.length) setLoadingText(msgs[msgIdx]);
+    }, 600);
+    const progInterval = setInterval(() => {
+      setLoadingProgress(p => Math.min(p + Math.random() * 12, 90));
+    }, 400);
 
-    setTimeout(() => {
-      clearInterval(msgInterval); clearInterval(progInterval);
+    try {
+      const response = await fetch('http://localhost:8000/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+
+      clearInterval(msgInterval);
+      clearInterval(progInterval);
       setLoadingProgress(100);
 
-      const income = parseFloat(form.monthlyIncome) || 0;
-      const addInc = parseFloat(form.additionalIncome) || 0;
-      const total = income + addInc;
-      const loan = parseFloat(form.loanAmount) || 0;
-      const term = parseFloat(form.loanTerm) || 12;
-      const dti = total > 0 ? ((loan / term) / total) * 100 : 100;
-      let score = 50;
-      if (total >= 10000000) score += 15; else if (total >= 5000000) score += 10; else if (total >= 3000000) score += 5; else score -= 10;
-      if (dti < 30) score += 20; else if (dti < 50) score += 5; else score -= 15;
-      if (form.creditHistory === 'Baik') score += 15; else if (form.creditHistory === 'Cukup') score += 5; else if (form.creditHistory === 'Buruk') score -= 20;
-      if (['PNS', 'Karyawan Swasta'].includes(form.employment)) score += 10; else if (form.employment === 'Wiraswasta') score += 5;
-      if (['S1', 'S2', 'S3'].includes(form.education)) score += 5;
-      const age = parseInt(form.age) || 0;
-      if (age >= 25 && age <= 55) score += 5;
-      if (form.propertyArea === 'Urban') score += 5; else if (form.propertyArea === 'Semiurban') score += 3;
-      score = Math.max(0, Math.min(100, score));
-      const isLayak = score >= 55;
-      const conf = Math.min(98, Math.max(60, score + Math.random() * 10 - 5));
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Gagal menghubungi server');
+      }
+
+      const data = await response.json();
 
       const pred: PredictionResult = {
-        id: `pred_${Date.now()}`, date: new Date().toISOString(),
-        loanAmount: form.loanAmount, loanTerm: form.loanTerm, interestRate: form.interestRate || '0',
-        result: isLayak ? 'LAYAK' : 'TIDAK LAYAK', confidence: Math.round(conf * 10) / 10, inputData: { ...form },
+        id: `pred_${Date.now()}`,
+        date: new Date().toISOString(),
+        loanAmount: form.loanAmount,
+        loanTerm: form.loanTerm,
+        interestRate: data.bunga_persen || form.interestRate || '0',
+        result: data.result,
+        confidence: data.confidence,
+        inputData: { ...form },
+        // Bidang dari ML model
+        plafon: data.plafon,
+        bungaPersen: data.bunga_persen,
+        bungaRate: data.bunga_rate,
+        cicilanPerBulan: data.cicilan_per_bulan,
+        totalBunga: data.total_bunga,
+        totalBayar: data.total_bayar,
+        sisaPlafon: data.sisa_plafon,
+        nominalDicairkan: data.nominal_dicairkan,
+        catatanRisiko: data.catatan_risiko,
+        alasanPenolakan: data.alasan_penolakan,
       };
-      addPrediction(pred); setResult(pred); setStep('result');
-      if (isLayak) { setShowConfetti(true); setTimeout(() => setShowConfetti(false), 4000); }
-    }, 3000);
+
+      addPrediction(pred);
+      setResult(pred);
+      setStep('result');
+      if (data.result === 'LAYAK') {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 4000);
+      }
+    } catch (err: unknown) {
+      clearInterval(msgInterval);
+      clearInterval(progInterval);
+      // Jika backend tidak bisa diakses, tampilkan pesan error
+      const errorMsg = err instanceof Error ? err.message : 'Tidak dapat terhubung ke server backend.';
+      alert(`❌ Error: ${errorMsg}\n\nPastikan backend FastAPI berjalan di http://localhost:8000`);
+      setStep('form');
+      setLoadingProgress(0);
+    }
   };
+
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-3 border-sky-200 border-t-sky-500 rounded-full animate-spin-slow" /></div>;
 
   const formSections = [
     { title: 'Data Pinjaman', icon: CreditCard, fields: [
-      { key: 'loanAmount', label: 'Jumlah Pinjaman (Rp)', icon: DollarSign, type: 'number', placeholder: 'Contoh: 50000000', req: true },
-      { key: 'loanTerm', label: 'Tenor (Bulan)', icon: Clock, type: 'number', placeholder: 'Contoh: 36', req: true },
-      { key: 'interestRate', label: 'Suku Bunga (%/tahun)', icon: TrendingUp, type: 'number', placeholder: 'Contoh: 12', req: false },
+      { key: 'loanAmount', label: 'Jumlah Pinjaman ($)', icon: DollarSign, type: 'number', placeholder: 'Contoh: 5000', req: true },
+      { key: 'loanTerm', label: 'Tenor (Bulan)', icon: Clock, type: 'number', placeholder: '12 / 36 / 60', req: true },
       { key: 'loanPurpose', label: 'Tujuan Pinjaman', icon: FileCheck, type: 'select', options: ['', 'Modal Usaha', 'Pendidikan', 'Renovasi Rumah', 'Kendaraan', 'Kesehatan', 'Lainnya'], req: true },
     ]},
     { title: 'Data Tambahan', icon: BarChart3, fields: [
       { key: 'creditHistory', label: 'Riwayat Kredit', icon: BarChart3, type: 'select', options: ['', 'Baik', 'Cukup', 'Buruk', 'Belum Pernah'], req: true },
-      { key: 'coApplicantIncome', label: 'Pendapatan Pasangan (Rp)', icon: DollarSign, type: 'number', placeholder: '0 jika tidak ada', req: false },
+      { key: 'coApplicantIncome', label: 'Total Hutang Berjalan ($)', icon: DollarSign, type: 'number', placeholder: '0 jika tidak ada', req: false },
       { key: 'propertyArea', label: 'Area Tempat Tinggal', icon: HomeIcon, type: 'select', options: ['', 'Urban', 'Semiurban', 'Rural'], req: true },
     ]},
   ];
@@ -209,10 +246,22 @@ export default function PredictPage() {
             </div>
 
             {/* Auto-fill notice */}
-            <div className="glass-card-static rounded-2xl px-5 py-3.5 mb-6 flex items-center gap-3" style={{ boxShadow: '0 4px 20px rgba(14,165,233,0.06)' }}>
+            <div className="glass-card-static rounded-2xl px-5 py-3.5 mb-3 flex items-center gap-3" style={{ boxShadow: '0 4px 20px rgba(14,165,233,0.06)' }}>
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-white" /></div>
               <p className="text-xs font-semibold text-sky-700/60 dark:text-sky-300/50">Data profil terisi otomatis dari akun Anda ✓</p>
             </div>
+
+            {/* USD Currency notice */}
+            <div className="rounded-2xl px-5 py-3.5 mb-6 flex items-center gap-3" style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(234,179,8,0.08))', border: '1px solid rgba(245,158,11,0.25)' }}>
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center flex-shrink-0 flex-shrink-0">
+                <span className="text-white font-black text-sm">$</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-400">Semua nominal dalam US Dollar (USD)</p>
+                <p className="text-[11px] text-amber-600/70 dark:text-amber-500/60 mt-0.5">Model dilatih dengan dataset Prosper (Amerika). Contoh: gaji $5,000/bln, pinjaman $3,000</p>
+              </div>
+            </div>
+
 
             {/* Form card */}
             <div className="glass-card-static rounded-3xl overflow-hidden" style={{ boxShadow: '0 8px 40px rgba(14,165,233,0.08)' }}>
@@ -290,30 +339,46 @@ export default function PredictPage() {
           <div className="animate-result-reveal">
             {/* Result hero */}
             <div className="gradient-border mb-6">
-              <div className={`rounded-[22px] px-6 py-10 text-center relative overflow-hidden ${result.result === 'LAYAK' ? 'bg-gradient-to-br from-emerald-500/90 to-green-600/90' : 'bg-gradient-to-br from-red-500/90 to-rose-600/90'}`}>
+              <div className={`rounded-[22px] px-6 py-10 text-center relative overflow-hidden ${
+                result.result === 'LAYAK'
+                  ? 'bg-gradient-to-br from-emerald-500/90 to-green-600/90'
+                  : 'bg-gradient-to-br from-red-500/90 to-rose-600/90'
+              }`}>
                 <div className="absolute inset-0 bg-black/10" />
                 <div className="relative">
                   <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-white/20 backdrop-blur-sm mb-4">
-                    {result.result === 'LAYAK' ? <CheckCircle2 className="w-10 h-10 text-white" /> : <XCircle className="w-10 h-10 text-white" />}
+                    {result.result === 'LAYAK'
+                      ? <CheckCircle2 className="w-10 h-10 text-white" />
+                      : <XCircle className="w-10 h-10 text-white" />}
                   </div>
                   <h1 className="text-4xl font-black text-white mb-2" style={{ letterSpacing: '-0.03em' }}>{result.result}</h1>
                   <p className="text-white/70 text-sm font-semibold">
-                    {result.result === 'LAYAK' ? 'Selamat! Anda memenuhi kriteria kelayakan pinjaman 🎉' : 'Mohon maaf, saat ini belum memenuhi kriteria'}
+                    {result.result === 'LAYAK'
+                      ? 'Selamat! Pengajuan pinjaman Anda DITERIMA 🎉'
+                      : 'Mohon maaf, saat ini belum memenuhi kriteria'}
                   </p>
+                  {/* Catatan risiko */}
+                  {result.catatanRisiko && (
+                    <span className="inline-block mt-3 px-3 py-1 rounded-full bg-white/20 text-white/90 text-xs font-bold">
+                      {result.catatanRisiko}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Confidence + Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div className="glass-card-static rounded-3xl p-6 flex flex-col items-center justify-center" style={{ boxShadow: '0 8px 30px rgba(14,165,233,0.08)' }}>
                 <ConfidenceRing value={result.confidence} color={result.result === 'LAYAK' ? '#10b981' : '#ef4444'} />
                 <p className="text-xs font-bold text-sky-700/50 dark:text-sky-300/40 mt-2">Model Confidence Level</p>
               </div>
               <div className="glass-card-static rounded-3xl p-6 space-y-2.5" style={{ boxShadow: '0 8px 30px rgba(14,165,233,0.08)' }}>
-                <h3 className="text-xs font-extrabold text-sky-900 dark:text-sky-100 flex items-center gap-1.5 mb-3"><BarChart3 className="w-3.5 h-3.5 text-sky-500" /> Ringkasan</h3>
+                <h3 className="text-xs font-extrabold text-sky-900 dark:text-sky-100 flex items-center gap-1.5 mb-3">
+                  <BarChart3 className="w-3.5 h-3.5 text-sky-500" /> Ringkasan
+                </h3>
                 {[
-                  { l: 'Pinjaman', v: `Rp ${parseInt(result.loanAmount || '0').toLocaleString('id-ID')}` },
+                  { l: 'Pinjaman', v: `$${parseInt(result.loanAmount || '0').toLocaleString('en-US')}` },
                   { l: 'Tenor', v: `${result.loanTerm} bulan` },
                   { l: 'Tujuan', v: result.inputData.loanPurpose },
                   { l: 'Kredit', v: result.inputData.creditHistory },
@@ -325,6 +390,60 @@ export default function PredictPage() {
                 ))}
               </div>
             </div>
+
+            {/* ── JIKA LAYAK: detail plafon & cicilan ── */}
+            {result.result === 'LAYAK' && result.plafon && (
+              <div className="glass-card-static rounded-3xl p-6 mb-4" style={{ boxShadow: '0 8px 30px rgba(16,185,129,0.12)' }}>
+                <h3 className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 mb-4">
+                  <Banknote className="w-3.5 h-3.5" /> Rincian Pinjaman yang Disetujui
+                </h3>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="rounded-2xl p-4 text-center" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.08))' }}>
+                    <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-wider mb-1">Plafon Maksimal</p>
+                    <p className="text-xl font-black text-emerald-700 dark:text-emerald-300">
+                      ${(result.plafon).toLocaleString('en-US')}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl p-4 text-center" style={{ background: 'linear-gradient(135deg, rgba(14,165,233,0.12), rgba(99,102,241,0.08))' }}>
+                    <p className="text-[10px] font-bold text-sky-600/70 uppercase tracking-wider mb-1">Nominal Dicairkan</p>
+                    <p className="text-xl font-black text-sky-700 dark:text-sky-300">
+                      ${(result.nominalDicairkan || 0).toLocaleString('en-US')}
+                    </p>
+                  </div>
+                </div>
+                {[
+                  { icon: Calculator, l: 'Cicilan / Bulan', v: `$${(result.cicilanPerBulan || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
+                  { icon: TrendingUp,  l: 'Suku Bunga',     v: result.bungaPersen || '-' },
+                  { icon: DollarSign,  l: 'Total Bunga',    v: `$${(result.totalBunga || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
+                  { icon: BarChart3,   l: 'Total Bayar',    v: `$${(result.totalBayar || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
+                  { icon: Banknote,    l: 'Sisa Plafon',    v: `$${(result.sisaPlafon || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` },
+                ].map((r, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs py-2 border-b border-emerald-100/30 dark:border-emerald-800/20 last:border-0">
+                    <span className="flex items-center gap-1.5 text-emerald-700/60 dark:text-emerald-300/50 font-medium">
+                      <r.icon className="w-3 h-3" /> {r.l}
+                    </span>
+                    <span className="font-black text-emerald-800 dark:text-emerald-200">{r.v}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── JIKA TIDAK LAYAK: alasan penolakan ── */}
+            {result.result === 'TIDAK LAYAK' && result.alasanPenolakan && result.alasanPenolakan.length > 0 && (
+              <div className="glass-card-static rounded-3xl p-6 mb-4" style={{ boxShadow: '0 8px 30px rgba(239,68,68,0.10)' }}>
+                <h3 className="text-xs font-extrabold text-red-600 dark:text-red-400 flex items-center gap-1.5 mb-3">
+                  <AlertCircle className="w-3.5 h-3.5" /> Alasan Penolakan
+                </h3>
+                <ul className="space-y-2">
+                  {result.alasanPenolakan.map((alasan, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-red-700/70 dark:text-red-300/60 font-medium">
+                      <span className="mt-0.5 w-4 h-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0 text-red-500 font-black" style={{ fontSize: '9px' }}>{i + 1}</span>
+                      {alasan}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3">
@@ -339,6 +458,7 @@ export default function PredictPage() {
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

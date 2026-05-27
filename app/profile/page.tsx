@@ -41,8 +41,8 @@ export default function ProfilePage() {
     { key: 'dependents', label: 'Jumlah Tanggungan', icon: Users, type: 'number', ph: '0', req: false },
     { key: 'education', label: 'Pendidikan Terakhir', icon: GraduationCap, type: 'select', options: ['', 'SD', 'SMP', 'SMA/SMK', 'D3', 'S1', 'S2', 'S3'], req: true },
     { key: 'employment', label: 'Status Pekerjaan', icon: Briefcase, type: 'select', options: ['', 'PNS', 'Karyawan Swasta', 'Wiraswasta', 'Freelancer', 'Mahasiswa', 'Tidak Bekerja'], req: true },
-    { key: 'monthlyIncome', label: 'Pendapatan Bulanan (Rp)', icon: DollarSign, type: 'number', ph: 'Contoh: 5000000', req: true },
-    { key: 'additionalIncome', label: 'Pendapatan Tambahan (Rp)', icon: DollarSign, type: 'number', ph: 'Opsional', req: false },
+    { key: 'monthlyIncome', label: 'Pendapatan Bulanan ($)', icon: DollarSign, type: 'number', ph: 'Contoh: 5000', req: true },
+    { key: 'additionalIncome', label: 'Pendapatan Tambahan ($)', icon: DollarSign, type: 'number', ph: 'Opsional, contoh: 500', req: false },
     { key: 'address', label: 'Alamat', icon: MapPin, type: 'textarea', ph: 'Alamat lengkap', req: false },
   ];
 

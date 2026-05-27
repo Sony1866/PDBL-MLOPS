@@ -37,6 +37,18 @@ export interface PredictionResult {
   result: 'LAYAK' | 'TIDAK LAYAK';
   confidence: number;
   inputData: Record<string, string>;
+  // ── Hasil dari ML model (jika LAYAK) ──
+  plafon?: number;
+  bungaPersen?: string;
+  bungaRate?: number;
+  cicilanPerBulan?: number;
+  totalBunga?: number;
+  totalBayar?: number;
+  sisaPlafon?: number;
+  nominalDicairkan?: number;
+  catatanRisiko?: string;
+  // ── Jika TIDAK LAYAK ──
+  alasanPenolakan?: string[];
 }
 
 interface AuthContextType {
