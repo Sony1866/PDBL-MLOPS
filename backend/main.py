@@ -10,8 +10,13 @@ if sys.stdout.encoding != 'utf-8':
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from schemas import PredictInput, PredictOutput
+from admin_schemas import AdminLoginRequest, AdminLoginResponse, BulkDataRequest, EDAStats
 from predictor import Predictor
 import uvicorn
+
+# ── Admin credentials ────────────────────────────────────────────────────
+ADMIN_EMAIL = "admin@creditsense.ai"
+ADMIN_PASSWORD = "admin123"
 
 # ── Init FastAPI ──────────────────────────────────────────────────────────
 app = FastAPI(
@@ -56,9 +61,11 @@ def root():
         "app"      : "PDBL-MLOPS Loan Prediction API",
         "status"   : "running",
         "endpoints": {
-            "docs"   : "http://localhost:8000/docs",
-            "health" : "http://localhost:8000/health",
-            "predict": "POST http://localhost:8000/predict",
+            "docs"        : "http://localhost:8000/docs",
+            "health"      : "http://localhost:8000/health",
+            "predict"     : "POST http://localhost:8000/predict",
+            "admin_login" : "POST http://localhost:8000/admin/login",
+            "admin_stats" : "POST http://localhost:8000/admin/stats",
         }
     }
 
@@ -101,6 +108,77 @@ def predict(data: PredictInput):
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Terjadi kesalahan: {str(e)}")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ADMIN ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════
+
+@app.post("/admin/login", response_model=AdminLoginResponse, tags=["Admin"])
+def admin_login(data: AdminLoginRequest):
+    """Login admin — validasi credential."""
+    if data.email == ADMIN_EMAIL and data.password == ADMIN_PASSWORD:
+        import time, hashlib
+        token = hashlib.sha256(f"admin_{time.time()}".encode()).hexdigest()[:32]
+        return AdminLoginResponse(success=True, token=token)
+    return AdminLoginResponse(success=False, error="Email atau password admin salah")
+
+
+@app.post("/admin/stats", response_model=EDAStats, tags=["Admin"])
+def admin_stats(data: BulkDataRequest):
+    """
+    Hitung statistik EDA dari data yang dikirim frontend.
+    Frontend mengirim semua users + predictions dari localStorage.
+    """
+    users = data.users
+    predictions = data.predictions
+
+    total_users = len(users)
+    total_preds = len(predictions)
+    layak = sum(1 for p in predictions if p.get("result") == "LAYAK")
+    tidak_layak = total_preds - layak
+    approval_rate = round((layak / total_preds * 100), 1) if total_preds > 0 else 0.0
+    avg_conf = round(sum(p.get("confidence", 0) for p in predictions) / total_preds, 1) if total_preds > 0 else 0.0
+
+    # Distribusi tujuan pinjaman
+    purpose_dist = {}
+    credit_dist = {}
+    area_dist = {}
+    emp_dist = {}
+    for p in predictions:
+        inp = p.get("inputData", {})
+        purpose = inp.get("loanPurpose", "Lainnya")
+        purpose_dist[purpose] = purpose_dist.get(purpose, 0) + 1
+        credit = inp.get("creditHistory", "Unknown")
+        credit_dist[credit] = credit_dist.get(credit, 0) + 1
+        area = inp.get("propertyArea", "Unknown")
+        area_dist[area] = area_dist.get(area, 0) + 1
+        emp = inp.get("employment", "Unknown")
+        emp_dist[emp] = emp_dist.get(emp, 0) + 1
+
+    # Loan amount ranges
+    ranges = {"$0-1k": 0, "$1k-5k": 0, "$5k-10k": 0, "$10k-25k": 0, "$25k+": 0}
+    for p in predictions:
+        amt = int(p.get("loanAmount", "0") or "0")
+        if amt < 1000: ranges["$0-1k"] += 1
+        elif amt < 5000: ranges["$1k-5k"] += 1
+        elif amt < 10000: ranges["$5k-10k"] += 1
+        elif amt < 25000: ranges["$10k-25k"] += 1
+        else: ranges["$25k+"] += 1
+
+    return EDAStats(
+        totalUsers=total_users,
+        totalPredictions=total_preds,
+        layakCount=layak,
+        tidakLayakCount=tidak_layak,
+        approvalRate=approval_rate,
+        avgConfidence=avg_conf,
+        loanPurposeDistribution=purpose_dist,
+        creditHistoryDistribution=credit_dist,
+        propertyAreaDistribution=area_dist,
+        employmentDistribution=emp_dist,
+        loanAmountRanges=ranges,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════

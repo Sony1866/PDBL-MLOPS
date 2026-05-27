@@ -40,4 +40,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# python
+__pycache__/
+*.pyc
+*.pyo
+catboost_info/
+.venv/
+venv/
+
+# Docker
+docker-compose.override.yml

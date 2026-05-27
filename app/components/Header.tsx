@@ -22,6 +22,7 @@ export default function Header() {
     { label: 'Beranda', href: '/' },
     { label: 'Prediksi', href: '/predict' },
     { label: 'Dashboard', href: '/dashboard' },
+    { label: 'Admin', href: '/admin/login' },
   ];
 
   return (
