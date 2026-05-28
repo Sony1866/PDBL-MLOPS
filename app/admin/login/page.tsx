@@ -1,12 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Shield, Mail, Lock, ArrowRight, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Shield, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import Header from '../../components/Header';
 
-const ADMIN_EMAIL = 'admin@creditsense.ai';
-const ADMIN_PASSWORD = 'admin123';
+const BACKEND_URL = 'http://localhost:8000';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -22,7 +20,7 @@ export default function AdminLoginPage() {
     }
   }, [router]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!form.email || !form.password) {
@@ -31,26 +29,36 @@ export default function AdminLoginPage() {
     }
     setLoading(true);
 
-    // Simulate async
-    setTimeout(() => {
-      if (form.email === ADMIN_EMAIL && form.password === ADMIN_PASSWORD) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+
+      if (data.success && data.token) {
         localStorage.setItem('mlops_admin_session', JSON.stringify({
-          email: ADMIN_EMAIL,
+          email: form.email,
           loginAt: new Date().toISOString(),
-          token: `admin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          token: data.token,
         }));
         router.push('/admin');
       } else {
-        setError('Email atau password admin salah');
+        setError(data.error || 'Email atau password admin salah');
       }
-      setLoading(false);
-    }, 500);
+    } catch {
+      setError('Gagal terhubung ke server backend');
+    }
+    setLoading(false);
   };
 
   return (
     <div className="min-h-screen relative transition-colors duration-300 noise-overlay">
       <div className="gradient-mesh" /><div className="orb orb-1" /><div className="orb orb-2" />
-      <Header />
+
+      {/* No Header — admin login is secret */}
+
       <div className="relative z-10 flex items-center justify-center min-h-screen px-4 py-24">
         <div className="w-full max-w-md">
           <div className="text-center mb-6">

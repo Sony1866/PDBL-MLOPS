@@ -58,11 +58,10 @@ export default function AdminSidebar({ mobileOpen, onClose, onLogout }: AdminSid
               key={item.label}
               href={item.href}
               onClick={onClose}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 group ${
-                isActive
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 group ${isActive
                   ? 'bg-gradient-to-r from-amber-500/10 to-red-500/10 text-amber-600 dark:text-amber-400 border border-amber-200/30 dark:border-amber-700/20'
                   : 'text-sky-700/60 dark:text-sky-300/50 hover:bg-sky-50/50 dark:hover:bg-sky-800/20 hover:text-sky-800 dark:hover:text-sky-200'
-              }`}
+                }`}
             >
               <item.icon className={`w-4 h-4 ${isActive ? 'text-amber-500' : 'text-sky-400/60 group-hover:text-sky-500'}`} />
               {item.label}

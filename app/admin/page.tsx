@@ -5,78 +5,117 @@ import { useRouter } from 'next/navigation';
 import {
   Users, ClipboardList, CheckCircle2, XCircle, Target,
   BarChart3, Menu, TrendingUp, DollarSign, Brain, Activity,
-  Shield, Sparkles, RefreshCw
+  Shield, Sparkles, RefreshCw, Database, PieChart as PieIcon
 } from 'lucide-react';
 import AdminSidebar from './components/AdminSidebar';
 import DataTable from './components/DataTable';
 import { PieChart, BarChart, LineChart, HistogramChart } from './components/EDACharts';
 
+const BACKEND_URL = 'http://localhost:8000';
+
 /* ─── Types ─── */
-interface UserData {
-  id: string;
-  fullName: string;
-  email: string;
-  createdAt: string;
-  profile: { profileCompleted: boolean; employment?: string; monthlyIncome?: string; education?: string; age?: string; gender?: string };
+interface EDAData {
+  totalRecords: number;
+  avgMonthlyIncome: number;
+  medianMonthlyIncome: number;
+  avgDTI: number;
+  medianDTI: number;
+  avgCreditScore: number;
+  avgLoanAmount: number;
+  medianLoanAmount: number;
+  minLoanAmount: number;
+  maxLoanAmount: number;
+  loanStatusDistribution: Record<string, number>;
+  termDistribution: Record<string, number>;
+  prosperRatingDistribution: Record<string, number>;
+  employmentDistribution: Record<string, number>;
+  incomeRangeDistribution: Record<string, number>;
+  occupationTop10: Record<string, number>;
+  borrowerStateTop10: Record<string, number>;
+  creditScoreRanges: Record<string, number>;
+  listingCategoryDistribution: Record<string, number>;
+  homeownerDistribution: Record<string, number>;
+  dtiHistogram: { label: string; value: number }[];
+  creditScoreHistogram: { label: string; value: number }[];
+  loanAmountHistogram: { label: string; value: number }[];
+  monthlyIncomeHistogram: { label: string; value: number }[];
+  loansByYear: { label: string; value: number }[];
+  loansByYearMonth: { label: string; value: number }[];
 }
-interface PredictionData {
+
+interface PredLog {
   id: string;
-  date: string;
-  loanAmount: string;
-  loanTerm: string;
-  result: 'LAYAK' | 'TIDAK LAYAK';
-  confidence: number;
+  timestamp: string;
   inputData: Record<string, string>;
+  result: string;
+  confidence: number;
   plafon?: number;
   cicilanPerBulan?: number;
   alasanPenolakan?: string[];
   catatanRisiko?: string;
-  userId?: string;
-  userName?: string;
+  loanAmount: string;
+  loanTerm: string;
+  loanPurpose: string;
+  creditHistory: string;
+  employment: string;
+  propertyArea: string;
 }
 
-/* ─── Helpers ─── */
-function getAllUsersFromStorage(): UserData[] {
-  try { return JSON.parse(localStorage.getItem('mlops_users') || '[]'); }
-  catch { return []; }
+function dictToChartData(d: Record<string, number>) {
+  return Object.entries(d).map(([label, value]) => ({ label, value }));
 }
-function getAllPredictionsFromStorage(users: UserData[]): PredictionData[] {
-  const all: PredictionData[] = [];
-  users.forEach(u => {
-    try {
-      const preds = JSON.parse(localStorage.getItem(`mlops_predictions_${u.id}`) || '[]');
-      preds.forEach((p: PredictionData) => { all.push({ ...p, userId: u.id, userName: u.fullName }); });
-    } catch { /* skip */ }
-  });
-  // Sort newest first
-  all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  return all;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   ADMIN DASHBOARD PAGE
-   ═══════════════════════════════════════════════════════════════════ */
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [users, setUsers] = useState<UserData[]>([]);
-  const [predictions, setPredictions] = useState<PredictionData[]>([]);
+  const [eda, setEda] = useState<EDAData | null>(null);
+  const [predictions, setPredictions] = useState<PredLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'predictions'>('overview');
 
-  // Auth check & load data
+  const getToken = () => {
+    try {
+      const s = JSON.parse(localStorage.getItem('mlops_admin_session') || '{}');
+      return s.token || '';
+    } catch { return ''; }
+  };
+
   useEffect(() => {
     const session = localStorage.getItem('mlops_admin_session');
     if (!session) { router.push('/admin/login'); return; }
     loadData();
   }, [router]);
 
-  const loadData = () => {
+  const loadData = async () => {
     setIsLoading(true);
-    const u = getAllUsersFromStorage();
-    const p = getAllPredictionsFromStorage(u);
-    setUsers(u);
-    setPredictions(p);
+    setError('');
+    const token = getToken();
+    const headers = { 'Authorization': `Bearer ${token}` };
+
+    try {
+      const [edaRes, predRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/admin/eda`, { headers }),
+        fetch(`${BACKEND_URL}/admin/predictions`, { headers }),
+      ]);
+
+      if (edaRes.status === 401 || predRes.status === 401) {
+        localStorage.removeItem('mlops_admin_session');
+        router.push('/admin/login');
+        return;
+      }
+
+      if (edaRes.ok) {
+        const edaData = await edaRes.json();
+        setEda(edaData);
+      }
+      if (predRes.ok) {
+        const predData = await predRes.json();
+        setPredictions(predData.predictions || []);
+      }
+    } catch {
+      setError('Gagal terhubung ke backend. Pastikan server berjalan di localhost:8000');
+    }
     setIsLoading(false);
   };
 
@@ -85,8 +124,8 @@ export default function AdminDashboard() {
     router.push('/admin/login');
   };
 
-  // ── Computed stats ──
-  const stats = useMemo(() => {
+  // ── Prediction stats ──
+  const predStats = useMemo(() => {
     const total = predictions.length;
     const layak = predictions.filter(p => p.result === 'LAYAK').length;
     const tidakLayak = total - layak;
@@ -95,99 +134,12 @@ export default function AdminDashboard() {
     return { total, layak, tidakLayak, avgConf, approvalRate };
   }, [predictions]);
 
-  // ── EDA: Loan Purpose Distribution ──
-  const purposeData = useMemo(() => {
-    const map: Record<string, number> = {};
-    predictions.forEach(p => {
-      const purpose = p.inputData?.loanPurpose || 'Lainnya';
-      map[purpose] = (map[purpose] || 0) + 1;
-    });
-    return Object.entries(map).map(([label, value]) => ({ label, value }));
-  }, [predictions]);
-
-  // ── EDA: Credit History Distribution ──
-  const creditData = useMemo(() => {
-    const map: Record<string, number> = {};
-    predictions.forEach(p => {
-      const ch = p.inputData?.creditHistory || 'Unknown';
-      map[ch] = (map[ch] || 0) + 1;
-    });
-    return Object.entries(map).map(([label, value]) => ({ label, value }));
-  }, [predictions]);
-
-  // ── EDA: Property Area Distribution ──
-  const areaData = useMemo(() => {
-    const map: Record<string, number> = {};
-    predictions.forEach(p => {
-      const area = p.inputData?.propertyArea || 'Unknown';
-      map[area] = (map[area] || 0) + 1;
-    });
-    return Object.entries(map).map(([label, value]) => ({ label, value }));
-  }, [predictions]);
-
-  // ── EDA: Daily Trend ──
-  const dailyTrend = useMemo(() => {
-    const map: Record<string, number> = {};
-    predictions.forEach(p => {
-      const day = new Date(p.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-      map[day] = (map[day] || 0) + 1;
-    });
-    return Object.entries(map).map(([label, value]) => ({ label, value })).reverse().slice(-14);
-  }, [predictions]);
-
-  // ── EDA: Confidence Distribution ──
-  const confDist = useMemo(() => {
-    const buckets: Record<string, number> = { '0-20': 0, '20-40': 0, '40-60': 0, '60-80': 0, '80-100': 0 };
-    predictions.forEach(p => {
-      const c = p.confidence;
-      if (c < 20) buckets['0-20']++;
-      else if (c < 40) buckets['20-40']++;
-      else if (c < 60) buckets['40-60']++;
-      else if (c < 80) buckets['60-80']++;
-      else buckets['80-100']++;
-    });
-    return Object.entries(buckets).map(([label, value]) => ({ label: label + '%', value }));
-  }, [predictions]);
-
-  // ── EDA: Loan Amount Ranges ──
-  const loanRanges = useMemo(() => {
-    const buckets: Record<string, number> = { '$0-1k': 0, '$1k-5k': 0, '$5k-10k': 0, '$10k-25k': 0, '$25k+': 0 };
-    predictions.forEach(p => {
-      const amt = parseInt(p.loanAmount || '0');
-      if (amt < 1000) buckets['$0-1k']++;
-      else if (amt < 5000) buckets['$1k-5k']++;
-      else if (amt < 10000) buckets['$5k-10k']++;
-      else if (amt < 25000) buckets['$10k-25k']++;
-      else buckets['$25k+']++;
-    });
-    return Object.entries(buckets).map(([label, value]) => ({ label, value }));
-  }, [predictions]);
-
-  // ── EDA: Employment Distribution ──
-  const employmentData = useMemo(() => {
-    const map: Record<string, number> = {};
-    predictions.forEach(p => {
-      const emp = p.inputData?.employment || 'Unknown';
-      map[emp] = (map[emp] || 0) + 1;
-    });
-    return Object.entries(map).map(([label, value]) => ({ label, value }));
-  }, [predictions]);
-
   // ── Table columns ──
-  const userColumns = [
-    { key: 'fullName', label: 'Nama', sortable: true },
-    { key: 'email', label: 'Email', sortable: true },
-    { key: 'createdAt', label: 'Terdaftar', sortable: true, render: (v: unknown) => new Date(String(v)).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) },
-    { key: 'profileCompleted', label: 'Profil', render: (v: unknown) => (
-      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${v ? 'bg-emerald-100/60 dark:bg-emerald-900/20 text-emerald-600' : 'bg-amber-100/60 dark:bg-amber-900/20 text-amber-600'}`}>
-        {v ? 'Lengkap' : 'Belum'}
-      </span>
-    )},
-    { key: 'predCount', label: 'Prediksi', sortable: true },
-  ];
-
   const predColumns = [
-    { key: 'userName', label: 'User', sortable: true },
+    { key: 'timestamp', label: 'Waktu', sortable: true, render: (v: unknown) => {
+      const d = new Date(String(v));
+      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }},
     { key: 'result', label: 'Hasil', sortable: true, render: (v: unknown) => (
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold ${v === 'LAYAK' ? 'bg-emerald-100/60 dark:bg-emerald-900/20 text-emerald-600' : 'bg-red-100/60 dark:bg-red-900/20 text-red-500'}`}>
         {v === 'LAYAK' ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
@@ -198,34 +150,29 @@ export default function AdminDashboard() {
     { key: 'loanAmount', label: 'Pinjaman', sortable: true, render: (v: unknown) => `$${parseInt(String(v) || '0').toLocaleString('en-US')}` },
     { key: 'loanTerm', label: 'Tenor', render: (v: unknown) => `${v} bln` },
     { key: 'loanPurpose', label: 'Tujuan', sortable: true },
-    { key: 'date', label: 'Tanggal', sortable: true, render: (v: unknown) => new Date(String(v)).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) },
+    { key: 'employment', label: 'Pekerjaan', sortable: true },
+    { key: 'creditHistory', label: 'Kredit', sortable: true },
   ];
 
-  const userTableData = users.map(u => ({
-    ...u,
-    profileCompleted: u.profile?.profileCompleted || false,
-    predCount: predictions.filter(p => p.userId === u.id).length,
-  }));
-
-  const predTableData = predictions.map(p => ({
-    ...p,
-    loanPurpose: p.inputData?.loanPurpose || '-',
-  }));
+  const predTableData = predictions.map(p => ({ ...p }));
 
   // ── Summary cards ──
-  const summaryCards = [
-    { label: 'Total Pengguna', value: users.length, icon: Users, gradient: 'from-cyan-400 to-blue-500', shadow: 'rgba(14,165,233,0.25)' },
-    { label: 'Total Prediksi', value: stats.total, icon: ClipboardList, gradient: 'from-indigo-400 to-purple-500', shadow: 'rgba(99,102,241,0.25)' },
-    { label: 'Disetujui', value: stats.layak, icon: CheckCircle2, gradient: 'from-emerald-400 to-green-500', shadow: 'rgba(16,185,129,0.25)' },
-    { label: 'Ditolak', value: stats.tidakLayak, icon: XCircle, gradient: 'from-red-400 to-rose-500', shadow: 'rgba(239,68,68,0.25)' },
-    { label: 'Approval Rate', value: `${stats.approvalRate}%`, icon: TrendingUp, gradient: 'from-amber-400 to-orange-500', shadow: 'rgba(245,158,11,0.25)' },
-    { label: 'Avg Confidence', value: `${stats.avgConf}%`, icon: Target, gradient: 'from-sky-400 to-blue-600', shadow: 'rgba(14,165,233,0.25)' },
+  const overviewCards = [
+    { label: 'Data CSV Records', value: eda?.totalRecords?.toLocaleString() || '0', icon: Database, gradient: 'from-cyan-400 to-blue-500', shadow: 'rgba(14,165,233,0.25)' },
+    { label: 'Total Prediksi User', value: predStats.total, icon: ClipboardList, gradient: 'from-indigo-400 to-purple-500', shadow: 'rgba(99,102,241,0.25)' },
+    { label: 'Disetujui', value: predStats.layak, icon: CheckCircle2, gradient: 'from-emerald-400 to-green-500', shadow: 'rgba(16,185,129,0.25)' },
+    { label: 'Ditolak', value: predStats.tidakLayak, icon: XCircle, gradient: 'from-red-400 to-rose-500', shadow: 'rgba(239,68,68,0.25)' },
+    { label: 'Approval Rate', value: `${predStats.approvalRate}%`, icon: TrendingUp, gradient: 'from-amber-400 to-orange-500', shadow: 'rgba(245,158,11,0.25)' },
+    { label: 'Avg Confidence', value: `${predStats.avgConf}%`, icon: Target, gradient: 'from-sky-400 to-blue-600', shadow: 'rgba(14,165,233,0.25)' },
   ];
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-10 h-10 border-3 border-amber-200 border-t-amber-500 rounded-full animate-spin-slow" />
+        <div className="text-center">
+          <div className="w-10 h-10 border-3 border-amber-200 border-t-amber-500 rounded-full animate-spin-slow mx-auto mb-4" />
+          <p className="text-xs font-bold text-sky-500/60">Loading dataset & predictions...</p>
+        </div>
       </div>
     );
   }
@@ -236,7 +183,6 @@ export default function AdminDashboard() {
 
       <AdminSidebar mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onLogout={handleLogout} />
 
-      {/* Main content */}
       <main className="lg:ml-[260px] relative z-10 min-h-screen">
         {/* Top bar */}
         <div className="sticky top-0 z-30 glass-card-static border-b border-sky-100/30 dark:border-sky-800/20 px-4 lg:px-8 py-3 flex items-center justify-between">
@@ -260,124 +206,249 @@ export default function AdminDashboard() {
         </div>
 
         <div className="px-4 lg:px-8 py-6 space-y-8">
-          {/* ═══ SUMMARY CARDS ═══ */}
-          <section>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {summaryCards.map((c, i) => (
-                <div key={i} className="glass-card-static rounded-2xl p-4 relative overflow-hidden group" style={{ boxShadow: `0 4px 20px ${c.shadow.replace('0.25', '0.06')}` }}>
-                  <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${c.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xl font-black text-sky-900 dark:text-sky-100 tabular-nums" style={{ letterSpacing: '-0.03em' }}>{c.value}</p>
-                      <p className="text-[9px] font-bold text-sky-500/60 uppercase tracking-wider mt-0.5">{c.label}</p>
+          {error && (
+            <div className="px-5 py-4 rounded-2xl bg-red-50/80 dark:bg-red-900/20 border border-red-200/50 dark:border-red-800/30 text-red-500 text-sm font-medium">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* ═══ TAB NAVIGATION ═══ */}
+          <div className="flex gap-2">
+            {([
+              { key: 'overview', label: 'Overview', icon: Activity },
+              { key: 'eda', label: 'EDA Dataset', icon: BarChart3 },
+              { key: 'predictions', label: 'Prediksi User', icon: ClipboardList },
+            ] as const).map(tab => (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === tab.key
+                    ? 'bg-gradient-to-r from-amber-500 to-red-500 text-white shadow-lg'
+                    : 'glass-card-static text-sky-600 dark:text-sky-400 hover:shadow-md'
+                }`}>
+                <tab.icon className="w-3.5 h-3.5" /> {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ═══ OVERVIEW TAB ═══ */}
+          {activeTab === 'overview' && (
+            <>
+              <section>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {overviewCards.map((c, i) => (
+                    <div key={i} className="glass-card-static rounded-2xl p-4 relative overflow-hidden group" style={{ boxShadow: `0 4px 20px ${c.shadow.replace('0.25', '0.06')}` }}>
+                      <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${c.gradient} opacity-60 group-hover:opacity-100 transition-opacity`} />
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-xl font-black text-sky-900 dark:text-sky-100 tabular-nums" style={{ letterSpacing: '-0.03em' }}>{c.value}</p>
+                          <p className="text-[9px] font-bold text-sky-500/60 uppercase tracking-wider mt-0.5">{c.label}</p>
+                        </div>
+                        <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${c.gradient} flex items-center justify-center flex-shrink-0 opacity-80`} style={{ boxShadow: `0 3px 10px ${c.shadow}` }}>
+                          <c.icon className="w-4 h-4 text-white" />
+                        </div>
+                      </div>
                     </div>
-                    <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${c.gradient} flex items-center justify-center flex-shrink-0 opacity-80`} style={{ boxShadow: `0 3px 10px ${c.shadow}` }}>
-                      <c.icon className="w-4 h-4 text-white" />
-                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Dataset summary cards */}
+              {eda && (
+                <section>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Database className="w-4 h-4 text-sky-500" />
+                    <h2 className="text-sm font-black text-sky-900 dark:text-sky-100">Dataset Statistics (prosperLoanData.csv)</h2>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { l: 'Avg Monthly Income', v: `$${eda.avgMonthlyIncome.toLocaleString('en-US', {maximumFractionDigits:0})}` },
+                      { l: 'Avg Credit Score', v: eda.avgCreditScore.toFixed(0) },
+                      { l: 'Avg DTI Ratio', v: `${(eda.avgDTI * 100).toFixed(1)}%` },
+                      { l: 'Avg Loan Amount', v: `$${eda.avgLoanAmount.toLocaleString('en-US', {maximumFractionDigits:0})}` },
+                    ].map((s, i) => (
+                      <div key={i} className="glass-card-static rounded-2xl p-4 text-center">
+                        <p className="text-lg font-black text-sky-900 dark:text-sky-100">{s.v}</p>
+                        <p className="text-[9px] font-bold text-sky-500/60 uppercase tracking-wider mt-1">{s.l}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Quick charts */}
+              {eda && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <PieChart
+                    title="Distribusi Loan Status"
+                    data={dictToChartData(eda.loanStatusDistribution).slice(0, 6).map((d, i) => ({
+                      ...d, color: ['#10b981','#ef4444','#f59e0b','#6366f1','#0ea5e9','#ec4899'][i]
+                    }))}
+                  />
+                  <BarChart title="Distribusi Prosper Rating" data={dictToChartData(eda.prosperRatingDistribution)} />
+                </div>
+              )}
+
+              {/* Prediction results quick */}
+              {predStats.total > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <PieChart
+                    title="Hasil Prediksi User"
+                    data={[
+                      { label: 'LAYAK', value: predStats.layak, color: '#10b981' },
+                      { label: 'TIDAK LAYAK', value: predStats.tidakLayak, color: '#ef4444' },
+                    ]}
+                  />
+                  <BarChart
+                    title="Tujuan Pinjaman User"
+                    data={dictToChartData(
+                      predictions.reduce((acc, p) => {
+                        const k = p.loanPurpose || 'Lainnya';
+                        acc[k] = (acc[k] || 0) + 1;
+                        return acc;
+                      }, {} as Record<string, number>)
+                    )}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ═══ EDA TAB ═══ */}
+          {activeTab === 'eda' && eda && (
+            <>
+              <section id="eda">
+                <div className="flex items-center gap-2 mb-6">
+                  <BarChart3 className="w-4 h-4 text-sky-500" />
+                  <h2 className="text-sm font-black text-sky-900 dark:text-sky-100">Exploratory Data Analysis — prosperLoanData.csv</h2>
+                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100/50 dark:bg-indigo-900/20 border border-indigo-200/30 dark:border-indigo-700/20">
+                    <Sparkles className="w-2.5 h-2.5 text-indigo-500" />
+                    <span className="text-[9px] font-bold text-indigo-500/80 uppercase tracking-wider">{eda.totalRecords.toLocaleString()} Records</span>
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
 
-          {/* ═══ USER TABLE ═══ */}
-          <section id="users">
-            <div className="flex items-center gap-2 mb-4">
-              <Users className="w-4 h-4 text-sky-500" />
-              <h2 className="text-sm font-black text-sky-900 dark:text-sky-100">Daftar Pengguna</h2>
-              <span className="text-[10px] font-bold text-sky-400/50 px-2 py-0.5 rounded-full bg-sky-100/40 dark:bg-sky-800/20">{users.length}</span>
-            </div>
-            <DataTable
-              columns={userColumns}
-              data={userTableData}
-              searchKeys={['fullName', 'email']}
-              pageSize={8}
-              emptyMessage="Belum ada pengguna terdaftar"
-            />
-          </section>
+                {/* Row 1 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <PieChart
+                    title="Distribusi Loan Status"
+                    data={dictToChartData(eda.loanStatusDistribution).slice(0, 8).map((d, i) => ({
+                      ...d, color: ['#10b981','#ef4444','#f59e0b','#6366f1','#0ea5e9','#ec4899','#14b8a6','#8b5cf6'][i]
+                    }))}
+                  />
+                  <PieChart
+                    title="Homeowner vs Non-Homeowner"
+                    data={dictToChartData(eda.homeownerDistribution).map((d, i) => ({
+                      ...d, label: d.label === 'True' ? 'Homeowner' : 'Non-Homeowner',
+                      color: ['#0ea5e9','#f59e0b'][i]
+                    }))}
+                  />
+                </div>
 
-          {/* ═══ PREDICTION TABLE ═══ */}
-          <section id="predictions">
-            <div className="flex items-center gap-2 mb-4">
-              <ClipboardList className="w-4 h-4 text-sky-500" />
-              <h2 className="text-sm font-black text-sky-900 dark:text-sky-100">Riwayat Peminjaman</h2>
-              <span className="text-[10px] font-bold text-sky-400/50 px-2 py-0.5 rounded-full bg-sky-100/40 dark:bg-sky-800/20">{predictions.length}</span>
-            </div>
-            <DataTable
-              columns={predColumns}
-              data={predTableData}
-              searchKeys={['userName', 'result', 'loanPurpose']}
-              pageSize={10}
-              emptyMessage="Belum ada data peminjaman"
-            />
-          </section>
+                {/* Row 2 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <BarChart title="Distribusi Prosper Rating" data={dictToChartData(eda.prosperRatingDistribution)} />
+                  <BarChart title="Distribusi Employment Status" data={dictToChartData(eda.employmentDistribution)} />
+                </div>
 
-          {/* ═══ EDA ANALYTICS ═══ */}
-          <section id="eda">
-            <div className="flex items-center gap-2 mb-6">
-              <BarChart3 className="w-4 h-4 text-sky-500" />
-              <h2 className="text-sm font-black text-sky-900 dark:text-sky-100">Exploratory Data Analysis</h2>
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100/50 dark:bg-indigo-900/20 border border-indigo-200/30 dark:border-indigo-700/20">
-                <Sparkles className="w-2.5 h-2.5 text-indigo-500" />
-                <span className="text-[9px] font-bold text-indigo-500/80 uppercase tracking-wider">Analytics</span>
+                {/* Row 3 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <BarChart title="Top 10 Occupation" data={dictToChartData(eda.occupationTop10)} />
+                  <BarChart title="Top 10 Borrower State" data={dictToChartData(eda.borrowerStateTop10)} />
+                </div>
+
+                {/* Row 4: Histograms */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <HistogramChart title="Distribusi Credit Score" data={eda.creditScoreHistogram} color="#0ea5e9" />
+                  <HistogramChart title="Distribusi DTI Ratio" data={eda.dtiHistogram} color="#6366f1" />
+                </div>
+
+                {/* Row 5 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <HistogramChart title="Distribusi Loan Amount" data={eda.loanAmountHistogram} color="#10b981" />
+                  <HistogramChart title="Distribusi Monthly Income" data={eda.monthlyIncomeHistogram} color="#f59e0b" />
+                </div>
+
+                {/* Row 6 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <BarChart title="Distribusi Tenor (Bulan)" data={dictToChartData(eda.termDistribution)} />
+                  <BarChart title="Distribusi Income Range" data={dictToChartData(eda.incomeRangeDistribution)} />
+                </div>
+
+                {/* Row 7: Time series */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <LineChart title="Jumlah Loan per Tahun" data={eda.loansByYear} color="#0ea5e9" />
+                  <BarChart title="Listing Category (Top 10)" data={dictToChartData(eda.listingCategoryDistribution)} />
+                </div>
+              </section>
+            </>
+          )}
+
+          {/* ═══ PREDICTIONS TAB ═══ */}
+          {activeTab === 'predictions' && (
+            <section id="predictions">
+              <div className="flex items-center gap-2 mb-4">
+                <ClipboardList className="w-4 h-4 text-sky-500" />
+                <h2 className="text-sm font-black text-sky-900 dark:text-sky-100">Riwayat Prediksi User (Diterima / Ditolak)</h2>
+                <span className="text-[10px] font-bold text-sky-400/50 px-2 py-0.5 rounded-full bg-sky-100/40 dark:bg-sky-800/20">{predictions.length}</span>
               </div>
-            </div>
 
-            {/* Row 1: Pie + Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <PieChart
-                title="Distribusi Hasil Prediksi"
-                data={[
-                  { label: 'LAYAK', value: stats.layak, color: '#10b981' },
-                  { label: 'TIDAK LAYAK', value: stats.tidakLayak, color: '#ef4444' },
-                ]}
-              />
-              <BarChart
-                title="Tujuan Pinjaman"
-                data={purposeData}
-              />
-            </div>
+              {predictions.length === 0 ? (
+                <div className="glass-card-static rounded-2xl p-12 text-center">
+                  <Brain className="w-12 h-12 text-sky-300/40 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-sky-700/50 dark:text-sky-300/40">Belum ada prediksi user</p>
+                  <p className="text-xs text-sky-500/40 mt-1">Data akan muncul setelah user melakukan prediksi di halaman Predict</p>
+                </div>
+              ) : (
+                <>
+                  {/* Prediction stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { l: 'Total Prediksi', v: predStats.total, g: 'from-indigo-400 to-purple-500' },
+                      { l: 'Diterima (LAYAK)', v: predStats.layak, g: 'from-emerald-400 to-green-500' },
+                      { l: 'Ditolak (TIDAK LAYAK)', v: predStats.tidakLayak, g: 'from-red-400 to-rose-500' },
+                      { l: 'Approval Rate', v: `${predStats.approvalRate}%`, g: 'from-amber-400 to-orange-500' },
+                    ].map((c, i) => (
+                      <div key={i} className="glass-card-static rounded-2xl p-4 text-center relative overflow-hidden">
+                        <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${c.g}`} />
+                        <p className="text-xl font-black text-sky-900 dark:text-sky-100">{c.v}</p>
+                        <p className="text-[9px] font-bold text-sky-500/60 uppercase tracking-wider mt-1">{c.l}</p>
+                      </div>
+                    ))}
+                  </div>
 
-            {/* Row 2: Bar + Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <BarChart
-                title="Riwayat Kredit"
-                data={creditData}
-              />
-              <BarChart
-                title="Area Tempat Tinggal"
-                data={areaData}
-              />
-            </div>
+                  {/* Charts */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <PieChart
+                      title="Distribusi Hasil Prediksi"
+                      data={[
+                        { label: 'LAYAK (Diterima)', value: predStats.layak, color: '#10b981' },
+                        { label: 'TIDAK LAYAK (Ditolak)', value: predStats.tidakLayak, color: '#ef4444' },
+                      ]}
+                    />
+                    <BarChart
+                      title="Pekerjaan Pemohon"
+                      data={dictToChartData(
+                        predictions.reduce((acc, p) => {
+                          const k = p.employment || 'Unknown';
+                          acc[k] = (acc[k] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>)
+                      )}
+                    />
+                  </div>
 
-            {/* Row 3: Line + Histogram */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <LineChart
-                title="Trend Prediksi Harian"
-                data={dailyTrend}
-                color="#0ea5e9"
-              />
-              <HistogramChart
-                title="Distribusi Confidence Level"
-                data={confDist}
-                color="#6366f1"
-              />
-            </div>
+                  {/* Table */}
+                  <DataTable
+                    columns={predColumns}
+                    data={predTableData}
+                    searchKeys={['result', 'loanPurpose', 'employment', 'creditHistory']}
+                    pageSize={10}
+                    emptyMessage="Belum ada data prediksi"
+                  />
+                </>
+              )}
+            </section>
+          )}
 
-            {/* Row 4: Bar + Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <BarChart
-                title="Range Jumlah Pinjaman"
-                data={loanRanges}
-              />
-              <BarChart
-                title="Distribusi Pekerjaan"
-                data={employmentData}
-              />
-            </div>
-          </section>
-
-          {/* Footer spacer */}
           <div className="h-8" />
         </div>
       </main>

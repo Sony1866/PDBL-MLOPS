@@ -64,3 +64,70 @@ class EDAStats(BaseModel):
     loanAmountRanges: dict = {}
     confidenceDistribution: List[dict] = []
     dailyTrend: List[dict] = []
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# NEW: Response models untuk EDA dari dataset CSV & prediction logs
+# ══════════════════════════════════════════════════════════════════════════
+
+class DatasetEDAResponse(BaseModel):
+    """EDA statistik yang dihitung dari prosperLoanData.csv"""
+    totalRecords: int = 0
+
+    # Summary stats
+    avgMonthlyIncome: float = 0.0
+    medianMonthlyIncome: float = 0.0
+    avgDTI: float = 0.0
+    medianDTI: float = 0.0
+    avgCreditScore: float = 0.0
+    avgLoanAmount: float = 0.0
+    medianLoanAmount: float = 0.0
+    minLoanAmount: float = 0.0
+    maxLoanAmount: float = 0.0
+
+    # Distribusi
+    loanStatusDistribution: dict = {}
+    termDistribution: dict = {}
+    prosperRatingDistribution: dict = {}
+    employmentDistribution: dict = {}
+    incomeRangeDistribution: dict = {}
+    occupationTop10: dict = {}
+    borrowerStateTop10: dict = {}
+    creditScoreRanges: dict = {}
+    listingCategoryDistribution: dict = {}
+    homeownerDistribution: dict = {}
+
+    # Histogram data
+    dtiHistogram: List[dict] = []
+    creditScoreHistogram: List[dict] = []
+    loanAmountHistogram: List[dict] = []
+    monthlyIncomeHistogram: List[dict] = []
+
+    # Time series
+    loansByYear: List[dict] = []
+    loansByYearMonth: List[dict] = []
+
+
+class PredictionLogEntry(BaseModel):
+    """Single prediction log entry"""
+    id: str = ""
+    timestamp: str = ""
+    inputData: dict = {}
+    result: str = ""
+    confidence: float = 0.0
+    plafon: Optional[int] = None
+    cicilanPerBulan: Optional[float] = None
+    alasanPenolakan: Optional[List[str]] = None
+    catatanRisiko: Optional[str] = None
+    loanAmount: str = "0"
+    loanTerm: str = "36"
+    loanPurpose: str = ""
+    creditHistory: str = ""
+    employment: str = ""
+    propertyArea: str = ""
+
+
+class PredictionLogsResponse(BaseModel):
+    """Response for admin prediction logs endpoint"""
+    total: int = 0
+    predictions: List[PredictionLogEntry] = []

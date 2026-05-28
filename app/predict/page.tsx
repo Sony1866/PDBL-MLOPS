@@ -211,8 +211,6 @@ export default function PredictPage() {
       { key: 'loanPurpose', label: 'Tujuan Pinjaman', icon: FileCheck, type: 'select', options: ['', 'Modal Usaha', 'Pendidikan', 'Renovasi Rumah', 'Kendaraan', 'Kesehatan', 'Lainnya'], req: true },
     ]},
     { title: 'Data Tambahan', icon: BarChart3, fields: [
-      { key: 'creditHistory', label: 'Riwayat Kredit', icon: BarChart3, type: 'select', options: ['', 'Baik', 'Cukup', 'Buruk', 'Belum Pernah'], req: true },
-      { key: 'coApplicantIncome', label: 'Total Hutang Berjalan ($)', icon: DollarSign, type: 'number', placeholder: '0 jika tidak ada', req: false },
       { key: 'propertyArea', label: 'Area Tempat Tinggal', icon: HomeIcon, type: 'select', options: ['', 'Urban', 'Semiurban', 'Rural'], req: true },
     ]},
   ];

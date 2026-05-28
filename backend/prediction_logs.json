@@ -1,0 +1,35 @@
+[
+  {
+    "id": "pred_1779982760119",
+    "timestamp": "2026-05-28T22:39:20.119871",
+    "inputData": {
+      "age": "30",
+      "gender": "Male",
+      "maritalStatus": "Married",
+      "dependents": "1",
+      "education": "S1",
+      "employment": "Karyawan Swasta",
+      "monthlyIncome": "5000",
+      "additionalIncome": "1000",
+      "loanAmount": "3000",
+      "loanTerm": "36",
+      "interestRate": "0",
+      "loanPurpose": "Modal Usaha",
+      "propertyArea": "Urban",
+      "creditHistory": "Baik",
+      "coApplicantIncome": "500"
+    },
+    "result": "LAYAK",
+    "confidence": 95.9,
+    "plafon": -1929,
+    "cicilanPerBulan": -66.87,
+    "alasanPenolakan": null,
+    "catatanRisiko": "Profil sangat sehat — risiko sangat rendah",
+    "loanAmount": "3000",
+    "loanTerm": "36",
+    "loanPurpose": "Modal Usaha",
+    "creditHistory": "Baik",
+    "employment": "Karyawan Swasta",
+    "propertyArea": "Urban"
+  }
+]
