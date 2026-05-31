@@ -28,6 +28,16 @@ class PredictInput(BaseModel):
     propertyArea: str = "Urban"
     creditHistory: str = "Baik"
     coApplicantIncome: str = "0"
+    existingInstallments: str = "0"
+    
+    # ── Sandbox Simulation ──
+    nikProfile: Optional[str] = "3171-JUNA"
+    
+    # ── Data Kontak User (diisi otomatis oleh frontend dari profil) ──
+    fullName: Optional[str] = ""
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
+    address: Optional[str] = ""
 
 
 class PredictOutput(BaseModel):

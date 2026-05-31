@@ -10,16 +10,16 @@ export default function ProfilePage() {
   const { user, isLoggedIn, isLoading, updateProfile } = useAuth();
   const router = useRouter();
   const [saved, setSaved] = useState(false);
-  const [form, setForm] = useState({ fullName: '', email: '', phone: '', age: '', gender: '', maritalStatus: '', dependents: '', education: '', employment: '', monthlyIncome: '', additionalIncome: '', address: '' });
+  const [form, setForm] = useState({ fullName: '', email: '', phone: '', age: '', gender: '', maritalStatus: '', dependents: '', education: '', employment: '', monthlyIncome: '', additionalIncome: '', address: '', existingInstallments: '' });
 
   useEffect(() => {
     if (!isLoading && !isLoggedIn) { router.push('/login'); return; }
-    if (user?.profile) setForm({ fullName: user.profile.fullName || '', email: user.profile.email || '', phone: user.profile.phone || '', age: user.profile.age || '', gender: user.profile.gender || '', maritalStatus: user.profile.maritalStatus || '', dependents: user.profile.dependents || '', education: user.profile.education || '', employment: user.profile.employment || '', monthlyIncome: user.profile.monthlyIncome || '', additionalIncome: user.profile.additionalIncome || '', address: user.profile.address || '' });
+    if (user?.profile) setForm({ fullName: user.profile.fullName || '', email: user.profile.email || '', phone: user.profile.phone || '', age: user.profile.age || '', gender: user.profile.gender || '', maritalStatus: user.profile.maritalStatus || '', dependents: user.profile.dependents || '', education: user.profile.education || '', employment: user.profile.employment || '', monthlyIncome: user.profile.monthlyIncome || '', additionalIncome: user.profile.additionalIncome || '', address: user.profile.address || '', existingInstallments: user.profile.existingInstallments || '0' });
   }, [user, isLoggedIn, isLoading, router]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const req = ['fullName', 'phone', 'age', 'gender', 'maritalStatus', 'education', 'employment', 'monthlyIncome'];
+    const req = ['fullName', 'phone', 'age', 'gender', 'maritalStatus', 'education', 'employment', 'monthlyIncome', 'existingInstallments'];
     const done = req.every(k => form[k as keyof typeof form]?.trim());
     updateProfile({ ...form, profileCompleted: done });
     setSaved(true); setTimeout(() => setSaved(false), 2000);
@@ -28,8 +28,8 @@ export default function ProfilePage() {
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-3 border-sky-200 border-t-sky-500 rounded-full animate-spin-slow" /></div>;
 
-  const filledCount = ['fullName', 'phone', 'age', 'gender', 'maritalStatus', 'education', 'employment', 'monthlyIncome'].filter(k => form[k as keyof typeof form]?.trim()).length;
-  const progress = Math.round((filledCount / 8) * 100);
+  const filledCount = ['fullName', 'phone', 'age', 'gender', 'maritalStatus', 'education', 'employment', 'monthlyIncome', 'existingInstallments'].filter(k => form[k as keyof typeof form]?.trim()).length;
+  const progress = Math.round((filledCount / 9) * 100);
 
   const fields = [
     { key: 'fullName', label: 'Nama Lengkap', icon: User, type: 'text', ph: 'Nama sesuai KTP', req: true },
@@ -43,6 +43,7 @@ export default function ProfilePage() {
     { key: 'employment', label: 'Status Pekerjaan', icon: Briefcase, type: 'select', options: ['', 'PNS', 'Karyawan Swasta', 'Wiraswasta', 'Freelancer', 'Mahasiswa', 'Tidak Bekerja'], req: true },
     { key: 'monthlyIncome', label: 'Pendapatan Bulanan ($)', icon: DollarSign, type: 'number', ph: 'Contoh: 5000', req: true },
     { key: 'additionalIncome', label: 'Pendapatan Tambahan ($)', icon: DollarSign, type: 'number', ph: 'Opsional, contoh: 500', req: false },
+    { key: 'existingInstallments', label: 'Cicilan Bulanan Aktif di Tempat Lain ($)', icon: DollarSign, type: 'number', ph: 'Contoh: 200 (isi 0 jika tidak ada cicilan aktif)', req: true },
     { key: 'address', label: 'Alamat', icon: MapPin, type: 'textarea', ph: 'Alamat lengkap', req: false },
   ];
 

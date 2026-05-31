@@ -125,6 +125,10 @@ class PredictionLogEntry(BaseModel):
     creditHistory: str = ""
     employment: str = ""
     propertyArea: str = ""
+    fullName: Optional[str] = ""
+    email: Optional[str] = ""
+    phone: Optional[str] = ""
+    address: Optional[str] = ""
 
 
 class PredictionLogsResponse(BaseModel):

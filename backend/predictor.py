@@ -111,11 +111,12 @@ class Predictor:
         dti = hutang / gaji if gaji > 0 else 0.99
 
         # Estimasi credit score berbasis riwayat kredit, status pekerjaan, dan kapasitas pendapatan
-        if data.creditHistory == "Buruk":
+        credit_history_status = input_user["credit_history_status"]
+        if credit_history_status == "Buruk":
             base_score = 520
-        elif data.creditHistory == "Cukup":
+        elif credit_history_status == "Cukup":
             base_score = 610
-        elif data.creditHistory == "Belum Pernah":
+        elif credit_history_status == "Belum Pernah":
             base_score = 590
         else: # "Baik"
             base_score = 700
@@ -219,9 +220,15 @@ class Predictor:
         proba   = float(self.pipe_klasifikasi.predict_proba(df_klas)[0, 1])
         is_accept = proba >= self.threshold
 
+        # Guardrail Bisnis Tambahan: Pendapatan minimal bulanan (OJK / Bank Standard)
+        if gaji < 300:
+            is_accept = False
+
         # ── D. REJECT ─────────────────────────────────────────────────
         if not is_accept:
             alasan = []
+            if gaji < 300:
+                alasan.append(f"Pendapatan bulanan (${gaji:,.0f} USD) belum memenuhi batas minimum persyaratan ($300 USD)")
             if dti > 0.50:
                 alasan.append(f"Rasio hutang terlalu tinggi ({dti:.0%})")
             if credit_score < 600:
@@ -239,6 +246,23 @@ class Predictor:
             )
 
         # ── E. STEP 2 — REGRESI (plafon) ─────────────────────────────
+        # Hitung fitur-fitur baru (V3)
+        net_monthly_cap = max(0.0, gaji * (0.43 - min(dti, 0.43)))
+        cs_mid          = (credit_score + (credit_score + 19)) / 2
+        tot_debt_month  = gaji * min(dti, 1.0)
+        delinq_comp     = tunggakan_ini * 3 + tunggakan_7 * 1 + catatan_buruk * 2
+        rev_pressure    = cicilan_kartu / (gaji + 1)
+        inq_density     = min(input_user["jumlah_pengajuan_kredit"], 3) / max(1.0, float(input_user["riwayat_kredit_tahun"] * 2))
+        inc_per_cl      = gaji / max(1.0, float(jumlah_cl))
+        avail_cred_rat  = sisa_limit / (sisa_limit + hutang + 1)
+        
+        # Penuhi kolom pre-loan yang wajib
+        emp_duration    = float(input_user["lama_kerja_bulan"])
+        borrower_state  = input_user["borrower_state"]
+        amt_delinquent  = 0.0 # Default pre-loan
+        pub_rec_12m     = min(catatan_buruk, 1.0)
+        trades_opened_6m = 0.0
+
         data_reg = {
             "Term"                               : tenor,
             "ListingCategory (numeric)"          : input_user["tujuan_pinjaman"],
@@ -247,9 +271,12 @@ class Predictor:
             "EmploymentStatus"                   : input_user["status_pekerjaan"],
             "IsBorrowerHomeowner"                : int(input_user["punya_rumah"]),
             "Occupation"                         : input_user["occupation"],
+            "EmploymentStatusDuration"           : emp_duration,
+            "BorrowerState"                      : borrower_state,
             "StatedMonthlyIncome"                : gaji,
             "IncomeVerifiable"                   : 1,
             "DebtToIncomeRatio"                  : round(dti, 4),
+            "IncomeRange"                        : income_range,
             "CreditScoreRangeLower"              : credit_score,
             "CreditScoreRangeUpper"              : credit_score + 19,
             "TotalCreditLinespast7years"         : input_user["riwayat_kredit_tahun"] * 2,
@@ -263,19 +290,41 @@ class Predictor:
             "OpenRevolvingAccounts"              : max(1, jumlah_cl - 1),
             "OpenRevolvingMonthlyPayment"        : cicilan_kartu,
             "InquiriesLast6Months"               : min(input_user["jumlah_pengajuan_kredit"], 3),
+            "TotalInquiries"                     : input_user["jumlah_pengajuan_kredit"],
             "CurrentDelinquencies"               : tunggakan_ini,
+            "AmountDelinquent"                   : amt_delinquent,
             "DelinquenciesLast7Years"            : tunggakan_7,
             "PublicRecordsLast10Years"           : catatan_buruk,
-            "TotalDebtEstimation"                : gaji * dti,
-            "CreditScoreRange"                   : 19,
+            "PublicRecordsLast12Months"          : pub_rec_12m,
+            "TradesOpenedLast6Months"            : trades_opened_6m,
+            "net_monthly_capacity"               : round(net_monthly_cap, 4),
+            "credit_score_mid"                   : round(cs_mid, 4),
+            "total_debt_monthly"                 : round(tot_debt_month, 4),
+            "delinq_composite"                   : delinq_comp,
+            "revolving_pressure"                 : round(rev_pressure, 4),
+            "inquiry_density"                    : round(inq_density, 4),
+            "income_per_credit_line"             : round(inc_per_cl, 4),
+            "available_credit_ratio"             : round(avail_cred_rat, 4),
         }
 
         df_reg   = pd.DataFrame([data_reg])
         plafon   = int(np.round(self.model_regresi.predict(df_reg)[0]))
+        # Clip plafon ke batas aman sistem [PLAFON_MIN, PLAFON_MAX] ($1,000 - $35,000)
+        plafon   = max(1000, min(35000, plafon))
         nominal  = input_user["nominal_dicairkan"]
 
-        # Pastikan nominal tidak melebihi plafon
-        nominal_final = min(nominal, plafon)
+        # Kredivo Style Rule: Jika nominal pinjaman yang diminta melebihi plafon limit, maka transaksi REJECT!
+        if nominal > plafon:
+            return PredictOutput(
+                result="TIDAK LAYAK",
+                confidence=95.0,
+                alasan_penolakan=[
+                    f"Nominal pengajuan (${nominal:,.0f} USD) melebihi limit kredit maksimal Anda (${plafon:,.0f} USD). Silakan ajukan nominal di bawah limit Anda."
+                ]
+            )
+
+        # Nominal disetujui sama dengan nominal belanja karena berada di bawah limit
+        nominal_final = nominal
 
         # ── F. STEP 3 — Hitung cicilan anuitas ───────────────────────
         bunga_per_bulan = bunga / 12
@@ -320,10 +369,31 @@ class Predictor:
     # PRIVATE — mapping frontend form → format input_user
     # ------------------------------------------------------------------
     def _map_input(self, data: PredictInput) -> dict:
-        # Credit history → tunggakan
-        tunggakan_ini, tunggakan_7, catatan_buruk = CREDIT_HISTORY_MAP.get(
-            data.creditHistory, (0, 0, 0)
-        )
+        # ── BI Checking Automatic Underwriting Simulation based on DTI ──
+        gaji = float(data.monthlyIncome or "0")
+        cicilan_aktif = float(data.existingInstallments or "0")
+        nik = data.nikProfile or "DTI-Simulated"
+        
+        # Hitung Rasio Utang terhadap Pendapatan (Debt-to-Income / DTI)
+        dti_ratio = (cicilan_aktif / gaji) if gaji > 0 else 0.0
+        
+        # Simulasikan parameter SLIK OJK secara otomatis berdasarkan DTI:
+        if dti_ratio == 0.0:
+            # Nasabah dengan profil bersih tanpa utang aktif (Kredit Sangat Baik / Score Tinggi)
+            tunggakan_ini, tunggakan_7, catatan_buruk = (0, 0, 0)
+            credit_history = "Baik"
+            hutang = 0.0
+        elif dti_ratio <= 0.35:
+            # Nasabah dengan cicilan aktif sehat/wajar (DTI <= 35%)
+            tunggakan_ini, tunggakan_7, catatan_buruk = (0, 1, 0)
+            credit_history = "Cukup"
+            hutang = cicilan_aktif
+        else:
+            # Nasabah dengan beban cicilan terlampau besar (> 35% - batas aman underwriting)
+            # Secara otomatis disimulasikan memiliki riwayat buruk / gagal bayar aktif
+            tunggakan_ini, tunggakan_7, catatan_buruk = (3, 5, 2)
+            credit_history = "Buruk"
+            hutang = cicilan_aktif
 
         # Employment
         status_pekerjaan = EMPLOYMENT_MAP.get(data.employment, "Other")
@@ -340,7 +410,7 @@ class Predictor:
 
         # Estimasi riwayat kredit dari usia & dependents
         age              = max(int(data.age or "25"), 18)
-        riwayat_kredit   = max(1, (age - 18) // 4)  # estimasi kasar
+        riwayat_kredit   = max(1, (age - 18) // 4)  #  estimasi kasar
 
         # Credit line dari dependents (proxy)
         dependents       = int(data.dependents or "0")
@@ -348,7 +418,6 @@ class Predictor:
 
         # Gaji & hutang
         gaji             = float(data.monthlyIncome or "0")
-        hutang           = float(data.coApplicantIncome or "0")  # hutang berjalan
         sisa_limit       = float(data.additionalIncome or "0") * 0.5  # estimasi sisa limit
 
         # Cicilan kartu estimasi
@@ -369,8 +438,10 @@ class Predictor:
             "tunggakan_saat_ini"      : tunggakan_ini,
             "tunggakan_7tahun"        : tunggakan_7,
             "catatan_buruk"           : catatan_buruk,
+            "credit_history_status"   : credit_history,
             "jumlah_pengajuan_kredit" : 1,
             "lama_kerja_bulan"        : max(12, age * 3),
             "tujuan_pinjaman"         : tujuan_pinjaman,
             "nominal_dicairkan"       : float(data.loanAmount or "0"),
+            "nik_profile"             : nik,
         }

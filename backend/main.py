@@ -26,7 +26,7 @@ import pandas as pd
 import numpy as np
 
 # ── Admin credentials ────────────────────────────────────────────────────
-ADMIN_EMAIL = "admin@creditsense.ai"
+ADMIN_EMAIL = "admin@kreditinaja.id"
 ADMIN_PASSWORD = "admin123"
 
 # ── Paths ─────────────────────────────────────────────────────────────────
@@ -339,6 +339,11 @@ def predict(data: PredictInput):
             "creditHistory": data.creditHistory,
             "employment": data.employment,
             "propertyArea": data.propertyArea,
+            # Data kontak nasabah
+            "fullName": data.fullName,
+            "email": data.email,
+            "phone": data.phone,
+            "address": data.address,
         }
         _save_prediction_log(log_entry)
 
@@ -385,6 +390,23 @@ def admin_predictions(token: str = Depends(verify_admin_token)):
     logs = _load_prediction_logs()
     entries = []
     for log in reversed(logs):  # newest first
+        # ── Fallback untuk log simulasi historis (JUNA/DEDI/ANI) ──
+        inp = log.get("inputData", {})
+        nik = inp.get("nikProfile") or log.get("nik_profile") or ""
+        
+        full_name = log.get("fullName") or ""
+        email = log.get("email") or ""
+        phone = log.get("phone") or ""
+        address = log.get("address") or ""
+        
+        if not full_name and nik:
+            if "JUNA" in nik:
+                full_name, email, phone, address = ("Juna (Simulasi)", "juna@gmail.com", "081234567890", "Jl. Bersih No. 1, Jakarta")
+            elif "DEDI" in nik:
+                full_name, email, phone, address = ("Dedi (Simulasi)", "dedi@gmail.com", "087789012345", "Jl. Macet No. 12, Bandung")
+            elif "ANI" in nik:
+                full_name, email, phone, address = ("Ani (Simulasi)", "ani@gmail.com", "085523456789", "Jl. Sehat No. 3, Surabaya")
+
         entries.append(PredictionLogEntry(
             id=log.get("id", ""),
             timestamp=log.get("timestamp", ""),
@@ -401,6 +423,10 @@ def admin_predictions(token: str = Depends(verify_admin_token)):
             creditHistory=log.get("creditHistory", ""),
             employment=log.get("employment", ""),
             propertyArea=log.get("propertyArea", ""),
+            fullName=full_name,
+            email=email,
+            phone=phone,
+            address=address,
         ))
     return PredictionLogsResponse(total=len(entries), predictions=entries)
 

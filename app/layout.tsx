@@ -3,7 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
 
 export const metadata: Metadata = {
-  title: "CreditSense AI — Deteksi Kelayakan Nasabah Pinjaman",
+  title: "KreditinAja! — Deteksi Kelayakan Nasabah Pinjaman",
   description: "Platform deteksi kelayakan nasabah dalam mengajukan pinjaman berbasis Machine Learning Operations menggunakan algoritma Gradient Boosting.",
 };
 

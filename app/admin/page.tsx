@@ -81,6 +81,24 @@ export default function AdminDashboard() {
     } catch { return ''; }
   };
 
+  // ── Sync activeTab with URL hash on mount and hashchange ──
+  useEffect(() => {
+    const syncTabWithHash = () => {
+      const hash = window.location.hash;
+      if (hash === '#predictions') {
+        setActiveTab('predictions');
+      } else if (hash === '#eda' || hash === '#users') {
+        setActiveTab('eda');
+      } else {
+        setActiveTab('overview');
+      }
+    };
+
+    syncTabWithHash();
+    window.addEventListener('hashchange', syncTabWithHash);
+    return () => window.removeEventListener('hashchange', syncTabWithHash);
+  }, []);
+
   useEffect(() => {
     const session = localStorage.getItem('mlops_admin_session');
     if (!session) { router.push('/admin/login'); return; }
@@ -140,18 +158,20 @@ export default function AdminDashboard() {
       const d = new Date(String(v));
       return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     }},
+    { key: 'fullName', label: 'Nama Nasabah', sortable: true },
+    { key: 'email', label: 'Email', sortable: true },
+    { key: 'phone', label: 'No. Telepon', sortable: true },
+    { key: 'address', label: 'Alamat', sortable: true },
     { key: 'result', label: 'Hasil', sortable: true, render: (v: unknown) => (
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-extrabold ${v === 'LAYAK' ? 'bg-emerald-100/60 dark:bg-emerald-900/20 text-emerald-600' : 'bg-red-100/60 dark:bg-red-900/20 text-red-500'}`}>
         {v === 'LAYAK' ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
         {String(v)}
       </span>
     )},
-    { key: 'confidence', label: 'Confidence', sortable: true, render: (v: unknown) => `${v}%` },
     { key: 'loanAmount', label: 'Pinjaman', sortable: true, render: (v: unknown) => `$${parseInt(String(v) || '0').toLocaleString('en-US')}` },
     { key: 'loanTerm', label: 'Tenor', render: (v: unknown) => `${v} bln` },
     { key: 'loanPurpose', label: 'Tujuan', sortable: true },
     { key: 'employment', label: 'Pekerjaan', sortable: true },
-    { key: 'creditHistory', label: 'Kredit', sortable: true },
   ];
 
   const predTableData = predictions.map(p => ({ ...p }));
@@ -219,7 +239,10 @@ export default function AdminDashboard() {
               { key: 'eda', label: 'EDA Dataset', icon: BarChart3 },
               { key: 'predictions', label: 'Prediksi User', icon: ClipboardList },
             ] as const).map(tab => (
-              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              <button key={tab.key} onClick={() => {
+                setActiveTab(tab.key);
+                window.location.hash = tab.key === 'overview' ? '' : tab.key;
+              }}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                   activeTab === tab.key
                     ? 'bg-gradient-to-r from-amber-500 to-red-500 text-white shadow-lg'
@@ -440,7 +463,7 @@ export default function AdminDashboard() {
                   <DataTable
                     columns={predColumns}
                     data={predTableData}
-                    searchKeys={['result', 'loanPurpose', 'employment', 'creditHistory']}
+                    searchKeys={['result', 'loanPurpose', 'employment', 'fullName', 'email', 'phone', 'address']}
                     pageSize={10}
                     emptyMessage="Belum ada data prediksi"
                   />

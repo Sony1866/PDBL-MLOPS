@@ -17,6 +17,7 @@ export interface UserProfile {
   additionalIncome: string;
   address: string;
   profileCompleted: boolean;
+  existingInstallments?: string;
 }
 
 export interface User {
@@ -117,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           additionalIncome: '',
           address: '',
           profileCompleted: false,
+          existingInstallments: '0',
         },
       };
 
