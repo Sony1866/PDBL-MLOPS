@@ -26,15 +26,12 @@ ENV NODE_ENV=production
 # otherwise Railway/Docker proxy cannot reach the server
 ENV HOSTNAME=0.0.0.0
 
-# Let Railway set PORT dynamically via env var
-# Default to 3000 for local Docker usage
-ENV PORT=3000
+# Do NOT hardcode PORT — Railway injects PORT at runtime.
+# Next.js standalone server.js reads process.env.PORT automatically.
 
 # Copy only necessary files
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-
-EXPOSE 3000
 
 CMD ["node", "server.js"]
