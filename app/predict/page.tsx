@@ -168,12 +168,8 @@ export default function PredictPage() {
     age: '', gender: '', maritalStatus: '', dependents: '',
     education: '', employment: '', monthlyIncome: '', additionalIncome: '',
     loanAmount: '', loanTerm: '', interestRate: '', loanPurpose: '',
-<<<<<<< Updated upstream
     propertyArea: '', creditHistory: 'Baik', coApplicantIncome: '0',
     existingInstallments: '0',
-=======
-    propertyArea: '',
->>>>>>> Stashed changes
   });
 
   useEffect(() => {
@@ -297,12 +293,6 @@ export default function PredictPage() {
       {showConfetti && <Confetti />}
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 pt-28 pb-16">
-<<<<<<< Updated upstream
-        
-        {/* ═══ FORM STEP ═══ */}
-        {step === 'form' && (
-          <div className="reveal-up visible">
-=======
         {/* ═══ ACTIVE LOAN BLOCKER ═══ */}
         {step === 'form' && hasActiveLoan && activeLoan && (
           <div className="animate-result-reveal">
@@ -330,7 +320,6 @@ export default function PredictPage() {
         {/* ═══ FORM ═══ */}
         {step === 'form' && !hasActiveLoan && (
           <>
->>>>>>> Stashed changes
             {/* Header */}
             <div className="text-center mb-8">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 mb-3 shadow-inner">
@@ -418,7 +407,7 @@ export default function PredictPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </>
         )}
 
         {/* ═══ LOADING STEP ═══ */}
@@ -497,7 +486,7 @@ export default function PredictPage() {
 
               {/* IF APPROVED: Render gorgeous premium Credit Card Mockup! */}
               {result.result === 'LAYAK' && result.plafon ? (
-                <CreditCardMockup userName={user?.name || ''} limit={result.plafon} />
+                <CreditCardMockup userName={user?.fullName || ''} limit={result.plafon} />
               ) : (
                 /* IF REJECTED: Render Summary card */
                 <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-800/50 rounded-[28px] p-6 space-y-2.5 shadow-md">

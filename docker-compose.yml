@@ -12,6 +12,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://backend:8000
     depends_on:
       - backend
     restart: unless-stopped
@@ -24,10 +25,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount model files from root
-      - ./best_model_regresi2.pkl:/app/../best_model_regresi2.pkl:ro
-      - ./model_tuned_final.pkl:/app/../model_tuned_final.pkl:ro
-      - ./threshold_tuned.pkl:/app/../threshold_tuned.pkl:ro
-      - ./best_params.pkl:/app/../best_params.pkl:ro
-      - ./selected_features.pkl:/app/../selected_features.pkl:ro
+      # Mount model files into /models/ inside the container
+      - ./best_model_regresi2.pkl:/app/models/best_model_regresi2.pkl:ro
+      - ./model_tuned_final.pkl:/app/models/model_tuned_final.pkl:ro
+      - ./threshold_tuned.pkl:/app/models/threshold_tuned.pkl:ro
+      - ./best_params.pkl:/app/models/best_params.pkl:ro
+      - ./selected_features.pkl:/app/models/selected_features.pkl:ro
+    environment:
+      - MODEL_DIR=/app/models
     restart: unless-stopped

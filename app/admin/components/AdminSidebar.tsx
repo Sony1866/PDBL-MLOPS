@@ -45,11 +45,7 @@ export default function AdminSidebar({ mobileOpen, onClose, onLogout, activeTab,
             <span className="text-sm font-black text-slate-800 dark:text-slate-100" style={{ letterSpacing: '-0.03em' }}>
               Admin<span className="bg-gradient-to-r from-indigo-500 to-violet-600 bg-clip-text text-transparent ml-0.5">Panel</span>
             </span>
-<<<<<<< Updated upstream
             <p className="text-[9px] font-bold text-sky-400/50 uppercase tracking-wider">KreditinAja! Admin</p>
-=======
-            <p className="text-[9px] font-bold text-slate-400/70 uppercase tracking-wider">CreditSense AI</p>
->>>>>>> Stashed changes
           </div>
         </Link>
       </div>
