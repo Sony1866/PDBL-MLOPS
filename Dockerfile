@@ -21,6 +21,13 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+
+# CRITICAL: Next.js standalone MUST bind to 0.0.0.0
+# otherwise Railway/Docker proxy cannot reach the server
+ENV HOSTNAME=0.0.0.0
+
+# Let Railway set PORT dynamically via env var
+# Default to 3000 for local Docker usage
 ENV PORT=3000
 
 # Copy only necessary files
