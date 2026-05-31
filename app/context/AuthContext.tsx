@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
 /* ─── Types ─── */
 export interface UserProfile {
@@ -57,11 +57,14 @@ interface AuthContextType {
   isLoggedIn: boolean;
   isLoading: boolean;
   predictions: PredictionResult[];
+  hasActiveLoan: boolean;
+  activeLoan: PredictionResult | null;
   login: (email: string, password: string) => { success: boolean; error?: string };
   register: (email: string, password: string, fullName: string) => { success: boolean; error?: string };
   logout: () => void;
   updateProfile: (profile: Partial<UserProfile>) => void;
   addPrediction: (prediction: PredictionResult) => void;
+  clearActiveLoan: (predictionId: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -69,6 +72,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [predictions, setPredictions] = useState<PredictionResult[]>([]);
+  const [loanClearedIds, setLoanClearedIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load from localStorage on mount
@@ -83,12 +87,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (savedPredictions) {
           setPredictions(JSON.parse(savedPredictions));
         }
+
+        // Load cleared loan IDs
+        const clearedIds = localStorage.getItem(`mlops_loan_cleared_${sessionData.user.id}`);
+        if (clearedIds) {
+          setLoanClearedIds(JSON.parse(clearedIds));
+        }
       }
     } catch (e) {
       console.error('Failed to load session:', e);
     }
     setIsLoading(false);
   }, []);
+
+  // Compute active loan status
+  const activeLoan = useMemo(() => {
+    // Find the most recent LAYAK prediction that hasn't been cleared
+    const layakPredictions = predictions.filter(
+      p => p.result === 'LAYAK' && !loanClearedIds.includes(p.id)
+    );
+    return layakPredictions.length > 0 ? layakPredictions[0] : null;
+  }, [predictions, loanClearedIds]);
+
+  const hasActiveLoan = activeLoan !== null;
 
   const register = useCallback((email: string, password: string, fullName: string) => {
     try {
@@ -155,6 +176,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPredictions([]);
       }
 
+      // Load cleared loan IDs
+      const clearedIds = localStorage.getItem(`mlops_loan_cleared_${found.id}`);
+      if (clearedIds) {
+        setLoanClearedIds(JSON.parse(clearedIds));
+      } else {
+        setLoanClearedIds([]);
+      }
+
       return { success: true };
     } catch (e) {
       return { success: false, error: 'Gagal login' };
@@ -165,6 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('mlops_session');
     setUser(null);
     setPredictions([]);
+    setLoanClearedIds([]);
   }, []);
 
   const updateProfile = useCallback((profileUpdate: Partial<UserProfile>) => {
@@ -197,17 +227,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, [user]);
 
+  const clearActiveLoan = useCallback((predictionId: string) => {
+    if (!user) return;
+
+    setLoanClearedIds(prev => {
+      const updated = [...prev, predictionId];
+      localStorage.setItem(`mlops_loan_cleared_${user.id}`, JSON.stringify(updated));
+      return updated;
+    });
+  }, [user]);
+
   return (
     <AuthContext.Provider value={{
       user,
       isLoggedIn: !!user,
       isLoading,
       predictions,
+      hasActiveLoan,
+      activeLoan,
       login,
       register,
       logout,
       updateProfile,
       addPrediction,
+      clearActiveLoan,
     }}>
       {children}
     </AuthContext.Provider>

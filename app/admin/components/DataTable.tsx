@@ -125,7 +125,7 @@ export default function DataTable({
               if (pg >= totalPages) return null;
               return (
                 <button key={pg} onClick={() => setPage(pg)}
-                  className={`w-7 h-7 rounded-lg text-[10px] font-bold transition-all ${pg === page ? 'bg-gradient-to-r from-amber-500 to-red-500 text-white shadow-sm' : 'text-sky-600/60 dark:text-sky-400/50 hover:bg-sky-100/40 dark:hover:bg-sky-800/20'}`}>
+                  className={`w-7 h-7 rounded-lg text-[10px] font-bold transition-all ${pg === page ? 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-sm' : 'text-slate-600/60 dark:text-slate-400/50 hover:bg-slate-100/40 dark:hover:bg-slate-800/20'}`}>
                   {pg + 1}
                 </button>
               );

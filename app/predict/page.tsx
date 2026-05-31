@@ -155,7 +155,7 @@ function CreditCardMockup({ userName, limit }: { userName: string; limit: number
 
 /* ═══ MAIN ═══ */
 export default function PredictPage() {
-  const { user, isLoggedIn, isLoading, addPrediction } = useAuth();
+  const { user, isLoggedIn, isLoading, addPrediction, hasActiveLoan, activeLoan } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState<'form' | 'loading' | 'result'>('form');
   const [formStep, setFormStep] = useState(0);
@@ -168,8 +168,12 @@ export default function PredictPage() {
     age: '', gender: '', maritalStatus: '', dependents: '',
     education: '', employment: '', monthlyIncome: '', additionalIncome: '',
     loanAmount: '', loanTerm: '', interestRate: '', loanPurpose: '',
+<<<<<<< Updated upstream
     propertyArea: '', creditHistory: 'Baik', coApplicantIncome: '0',
     existingInstallments: '0',
+=======
+    propertyArea: '',
+>>>>>>> Stashed changes
   });
 
   useEffect(() => {
@@ -293,10 +297,40 @@ export default function PredictPage() {
       {showConfetti && <Confetti />}
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 pt-28 pb-16">
+<<<<<<< Updated upstream
         
         {/* ═══ FORM STEP ═══ */}
         {step === 'form' && (
           <div className="reveal-up visible">
+=======
+        {/* ═══ ACTIVE LOAN BLOCKER ═══ */}
+        {step === 'form' && hasActiveLoan && activeLoan && (
+          <div className="animate-result-reveal">
+            <div className="glass-card-static rounded-3xl p-8 text-center" style={{ boxShadow: '0 8px 40px rgba(245,158,11,0.12)' }}>
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 mb-5">
+                <AlertCircle className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-xl font-black text-sky-950 dark:text-sky-100 mb-2" style={{ letterSpacing: '-0.03em' }}>Pinjaman Aktif Terdeteksi</h2>
+              <p className="text-sm text-sky-700/60 dark:text-sky-300/40 mb-6">Anda masih memiliki pinjaman aktif yang belum lunas. Silakan lunasi pinjaman sebelumnya terlebih dahulu.</p>
+              <div className="rounded-2xl p-5 mb-6" style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.08), rgba(234,179,8,0.05))', border: '1px solid rgba(245,158,11,0.2)' }}>
+                <div className="grid grid-cols-2 gap-3 text-left">
+                  <div><p className="text-[10px] font-bold text-amber-600/60 uppercase tracking-wider">Pinjaman</p><p className="text-sm font-black text-sky-900 dark:text-sky-100">${parseInt(activeLoan.loanAmount || '0').toLocaleString('en-US')}</p></div>
+                  <div><p className="text-[10px] font-bold text-amber-600/60 uppercase tracking-wider">Tenor</p><p className="text-sm font-black text-sky-900 dark:text-sky-100">{activeLoan.loanTerm} bulan</p></div>
+                  <div><p className="text-[10px] font-bold text-amber-600/60 uppercase tracking-wider">Cicilan/Bulan</p><p className="text-sm font-black text-sky-900 dark:text-sky-100">${(activeLoan.cicilanPerBulan || 0).toLocaleString('en-US', {maximumFractionDigits: 0})}</p></div>
+                  <div><p className="text-[10px] font-bold text-amber-600/60 uppercase tracking-wider">Tanggal</p><p className="text-sm font-black text-sky-900 dark:text-sky-100">{new Date(activeLoan.date).toLocaleDateString('id-ID')}</p></div>
+                </div>
+              </div>
+              <Link href="/dashboard" className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl text-white font-bold text-sm transition-all hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)', boxShadow: '0 6px 24px rgba(14,165,233,0.3)' }}>
+                Lihat Dashboard <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ FORM ═══ */}
+        {step === 'form' && !hasActiveLoan && (
+          <>
+>>>>>>> Stashed changes
             {/* Header */}
             <div className="text-center mb-8">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 mb-3 shadow-inner">

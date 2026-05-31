@@ -1,15 +1,8 @@
-"""
-schemas.py — Pydantic models untuk input/output API FastAPI
-"""
 from pydantic import BaseModel
 from typing import Optional, List, Literal
 
 
 class PredictInput(BaseModel):
-    """
-    Field yang dikirim dari form frontend.
-    Semua field bertipe string sesuai dengan state form di React.
-    """
     # ── Data Profil User (auto-fill dari AuthContext) ──
     age: str = ""
     gender: str = ""
@@ -26,8 +19,8 @@ class PredictInput(BaseModel):
     interestRate: str = "0"
     loanPurpose: str = "Lainnya"
     propertyArea: str = "Urban"
-    creditHistory: str = "Baik"
-    coApplicantIncome: str = "0"
+    creditHistory: str = "Baik"        # Default: Baik (tidak ditampilkan di form)
+    coApplicantIncome: str = "0"        # Default: 0 (tidak ditampilkan di form)
     existingInstallments: str = "0"
     
     # ── Sandbox Simulation ──
