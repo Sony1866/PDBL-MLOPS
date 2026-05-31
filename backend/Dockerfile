@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════
-# Dockerfile — FastAPI Backend
+# Dockerfile — FastAPI Backend (Root Context Build)
 # ═══════════════════════════════════════════════════════════
 
 FROM python:3.11-slim
@@ -11,15 +11,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first (cache layer)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements (using root context path)
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
-# Copy backend code
-COPY . .
+# Copy model files from root directory into /app
+COPY *.pkl ./
 
-# Copy model files from parent directory (during docker-compose build)
-# Note: model .pkl files should be copied via docker-compose volume or build context
+# Copy backend source code
+COPY backend/ ./backend/
+
+# Set working directory to backend folder for run command
+WORKDIR /app/backend
 
 EXPOSE 8000
 
